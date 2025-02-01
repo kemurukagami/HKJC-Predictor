@@ -4,14 +4,23 @@ import requests
 from bs4 import BeautifulSoup
 import sys
 import re
+import horse_racing_population
 
 app = Flask(__name__)
 
 def insert_racecard(racedate, racecourse, raceno):
+    global file
     url = 'https://racing.hkjc.com/racing/information/English/racing/RaceCard.aspx?RaceDate={0}&Racecourse={1}&RaceNo={2}'.format(racedate, racecourse, raceno)
-    response = requests.get(url)
+    try:
+        response = requests.get(url)
+    except:
+        
+        return 1
     if response.status_code == 200:
         try:
+            conn = sqlite3.connect('horseracing_data.db')
+            cursor = conn.cursor()
+            
             soup = BeautifulSoup(response.text, 'html.parser')
             
             extract_dist = soup.find('div', class_ = 'commContent raceCard').find('div', class_='margin_top10').find('div', class_ = 'f_fs13').get_text()
@@ -36,7 +45,8 @@ def insert_racecard(racedate, racecourse, raceno):
                 tds = tr.find_all('td')
                 lst =[dist, racecourse]
                 valid_entry = True
-                for td in tds:
+                for i in range(len(tds)):
+                    td = tds[i]         
                     try:
                         if td.find('span', class_='color_red').get_text().strip() == '(Scratched)':
                             valid_entry = False
@@ -51,8 +61,7 @@ def insert_racecard(racedate, racecourse, raceno):
                 if valid_entry:
                     racecard.append(tuple(lst))
                 
-            conn = sqlite3.connect('horseracing_data.db')
-            cursor = conn.cursor()
+            
             cursor.execute('DELETE FROM racecard')
             cursor.executemany('''
             INSERT OR REPLACE INTO racecard (
@@ -101,7 +110,7 @@ def insert_racecard(racedate, racecourse, raceno):
             return 1
     else:
         print("Failed to retrieve HTML content. Status code:", response.status_code)
-        return 1
+        return 1   
 
 def rank_racecards_by_jockey_performance():
     conn = sqlite3.connect('horseracing_data.db')
@@ -522,16 +531,23 @@ def calculate_performance_score(racecard_performance):
     return performance_score
         
         
-def gen_report(racedate, racecourse, raceno):
+def update_database_racecard():
+    horse_racing_population.update_db_relevant_only()
+        
+def gen_report(racedate, racecourse, raceno, update):
     global file
+    file = "Report.txt"
     if insert_racecard(racedate,racecourse,raceno) == 0:
-        file = "Report.txt"
+        
         with open(file, 'w') as f:
             f.write("\nRace Day : " + racedate)
             f.write("\nRace track : "+ racecourse)
             f.write("\nRace Number : "+ raceno)
             f.write("\n---------------------------\n")
-    
+
+        if update:
+            update_database_racecard()
+        
         rank_racecards_by_jockey_performance()
         rank_racecards_by_horse_performance()
         rank_racecards_by_trainer_performance()
@@ -541,6 +557,8 @@ def gen_report(racedate, racecourse, raceno):
         rank_horses_by_rtg_change()
         
         create_master_ranking(1,1,1,1,1,1,1)
+        return 0
+    return 1
 
 @app.route('/')
 def index():
@@ -554,13 +572,42 @@ def run_script():
     raceno = request.form['raceno']
 
     # Call the insert_racecard function with these dynamic arguments
-    gen_report(racedate, racecourse, raceno)  # Passing dynamic arguments
+    if gen_report(racedate, racecourse, raceno, False) == 1: # Passing dynamic arguments
+        print('..')
+        with open(file, 'w') as f:
+            f.write("\nRace Day : " + racedate)
+            f.write("\nRace track : "+ racecourse)
+            f.write("\nRace Number : "+ raceno)
+            f.write("\n---------------------------\n")
+            f.write("Racecard not yet available or is not the most recent race")
     
     with open(file, 'r') as f:
         file_content = f.read()
 
     return file_content 
 
+@app.route('/update_database', methods=['POST'])
+def update_database():
+    # Capture the form data from the request
+    racedate = request.form['racedate']
+    racecourse = request.form['racecourse']
+    raceno = request.form['raceno']
+
+    if gen_report(racedate, racecourse, raceno, True) == 1: # Passing dynamic arguments
+        with open(file, 'w') as f:
+            f.write("\nRace Day : " + racedate)
+            f.write("\nRace track : "+ racecourse)
+            f.write("\nRace Number : "+ raceno)
+            f.write("\n---------------------------\n")
+            f.write("Racecard not yet available or is not the most recent race")
+
+    # Read the output file and return its content
+    with open(file, 'r') as f:
+        file_content = f.read()
+
+    return file_content  # Display the contents of the text file in the frontend
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5001, debug=True)
+
     

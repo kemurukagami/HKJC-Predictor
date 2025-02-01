@@ -4,6 +4,9 @@ import requests
 from bs4 import BeautifulSoup
 import concurrent.futures
 
+global only_relevant
+only_relevant = False
+global racecard
 
 def retrieve_jockeys():
     url = "https://racing.hkjc.com/racing/information/English/Jockey/JockeyRanking.aspx"
@@ -122,6 +125,9 @@ def horse_extraction_by_location(url, horses):
                 li = future_to_li[future]
                 try:
                     result = future.result()
+                    # 0 indicates the result was skipped b/c horse was not in racecard
+                    if result == 0:
+                        continue
                     horses.append(result)
                 except Exception as e:
                     print(f"An error occurred for li: {li}: {e}")
@@ -130,11 +136,21 @@ def horse_extraction_by_location(url, horses):
         print("Failed to retrieve HTML content. Status code:", response.status_code)
 
 def process_li(li):
+    global only_relevant
+    global racecard
     a = li.find('a')
     horse_name = a.get_text().strip()
-    link = a['href']
-    season_stakes, total_stakes, rating = extract_horse_detail(link)
-    return horse_name, season_stakes, total_stakes, rating, link
+    if only_relevant:
+        if horse_name in racecard:
+            
+            link = a['href']
+            season_stakes, total_stakes, rating = extract_horse_detail(link)
+            return horse_name, season_stakes, total_stakes, rating, link
+    else:
+        link = a['href']
+        season_stakes, total_stakes, rating = extract_horse_detail(link)
+        return horse_name, season_stakes, total_stakes, rating, link
+    return 0
    
 def extract_horse_detail(url):
     url = 'https://racing.hkjc.com'+url
@@ -514,6 +530,8 @@ def dollar_to_number(dollar_str):
     return numeric_str
 
 def insert_horse_performance():
+    global racecard
+    global only_relevant
     # Create connection to SQLite database
     conn = sqlite3.connect('horseracing_data.db')
     cursor = conn.cursor()
@@ -535,7 +553,14 @@ def insert_horse_performance():
     );
     ''')
     
-    horses = cursor.execute("select * from horse").fetchall()
+    if only_relevant:
+        horses = cursor.execute('''
+                                SELECT horse.*
+                                FROM horse
+                                JOIN racecard ON horse.name = racecard.horse
+                                ''').fetchall()
+    else:
+        horses = cursor.execute("select * from horse").fetchall()
     
     horse_performance = []
     # Concurrently extract horse performance for each horse
@@ -666,22 +691,36 @@ def create_racecard_table():
 
 def initialize():
     
-    # retrieve_jockeys()
-    # print('retrieved jockeys')
-    # retrieve_trainers()
-    # print('retrieved trainers')
-    # extract_horses()
-    # print('extracted horses')
-    # create_location_distance()
-    # print('identified tracks')
-    # insert_jockey_performance()
-    # print('inserted jockey performance')
-    # insert_trainer_performance()
-    # print('inserted trainer performance')
+    retrieve_jockeys()
+    print('retrieved jockeys')
+    retrieve_trainers()
+    print('retrieved trainers')
+    extract_horses()
+    print('extracted horses')
+    create_location_distance()
+    print('identified tracks')
+    insert_jockey_performance()
+    print('inserted jockey performance')
+    insert_trainer_performance()
+    print('inserted trainer performance')
     insert_horse_performance()
     print('inserted horse performance')
     #create_racecard_table()
     
-if __name__ == "__main__":
+def update_relevant_only():
+    global only_relevant
+    global racecard
+    # all relevant Horses, as this is the main bottleneck. Updating the other data takes less time
+    only_relevant = True
+    conn = sqlite3.connect('horseracing_data.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT horse
+        FROM racecard
+    ''')
+    racecard = list(map(lambda x: x[0], cursor.fetchall()))
     initialize()
+
+if __name__ == "__main__":
+    update_relevant_only()
     
