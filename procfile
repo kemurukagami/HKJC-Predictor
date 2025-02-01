@@ -1,1 +1,1 @@
-web: python Gen_Report.py
+web: python3 Gen_Report.py
