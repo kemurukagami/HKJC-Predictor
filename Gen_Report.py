@@ -26,10 +26,7 @@ def insert_racecard(racedate, racecourse, raceno):
             extract_dist = soup.find('div', class_ = 'commContent raceCard').find('div', class_='margin_top10').find('div', class_ = 'f_fs13').get_text()
             pat = r'\d+M'
             
-            dist = re.findall(pat, extract_dist)[0][:-1]
-            
-            print(dist)
-            
+            dist = re.findall(pat, extract_dist)[0][:-1]            
             
             racecard_table = soup.find('table', id = 'racecardlist')
             tbody = racecard_table.find('tbody').find('tbody')
@@ -532,11 +529,10 @@ def calculate_performance_score(racecard_performance):
         
         
 def update_database_racecard():
-    horse_racing_population.update_db_relevant_only()
+    horse_racing_population.update_relevant_only()
         
 def gen_report(racedate, racecourse, raceno, update):
-    global file
-    file = "Report.txt"
+    set_file_name("Report.txt")
     if insert_racecard(racedate,racecourse,raceno) == 0:
         
         with open(file, 'w') as f:
@@ -546,8 +542,9 @@ def gen_report(racedate, racecourse, raceno, update):
             f.write("\n---------------------------\n")
 
         if update:
+            print("True")
             update_database_racecard()
-        
+        print("False")
         rank_racecards_by_jockey_performance()
         rank_racecards_by_horse_performance()
         rank_racecards_by_trainer_performance()
@@ -588,6 +585,7 @@ def run_script():
 
 @app.route('/update_database', methods=['POST'])
 def update_database():
+    print("True")
     # Capture the form data from the request
     racedate = request.form['racedate']
     racecourse = request.form['racecourse']
@@ -606,6 +604,10 @@ def update_database():
         file_content = f.read()
 
     return file_content  # Display the contents of the text file in the frontend
+
+def set_file_name(filename):
+    global file
+    file = filename
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)

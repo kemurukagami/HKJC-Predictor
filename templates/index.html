@@ -56,7 +56,7 @@
         
         <!-- Form to enter race details -->
         <form id="updateDatabaseForm" method="POST" action="/update_database">
-            <label for="racedate">Race Date (YYYY-MM-DD):</label><br>
+            <label for="racedate">Race Date (YYYY/MM/DD):</label><br>
             <input type="text" id="racedate" name="racedate" required><br>
             <label for="racecourse">Racecourse (ST/HV):</label><br>
             <input type="text" id="racecourse" name="racecourse" required><br>
@@ -76,7 +76,7 @@
 
             var formData = new FormData(this);
 
-            fetch('/run_script', {
+            fetch('/update_database', {
                 method: 'POST',
                 body: formData,
             })

@@ -707,11 +707,16 @@ def initialize():
     print('inserted horse performance')
     #create_racecard_table()
     
-def update_relevant_only():
+def set_relevant(relevance):
+    '''
+    Sets the global variable only_relevant
+    For testing purposes
+    '''
     global only_relevant
+    only_relevant = relevance
+    
+def set_racecard():
     global racecard
-    # all relevant Horses, as this is the main bottleneck. Updating the other data takes less time
-    only_relevant = True
     conn = sqlite3.connect('horseracing_data.db')
     cursor = conn.cursor()
     cursor.execute('''
@@ -719,6 +724,11 @@ def update_relevant_only():
         FROM racecard
     ''')
     racecard = list(map(lambda x: x[0], cursor.fetchall()))
+    
+def update_relevant_only():
+    # all relevant Horses, as this is the main bottleneck. Updating the other data takes less time
+    set_relevant(True)
+    set_racecard()
     initialize()
 
 if __name__ == "__main__":
